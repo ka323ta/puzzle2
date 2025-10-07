@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>拡張版パズルゲーム</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin: 20px;
+    background: #f0f0f0;
+  }
+  #controls {
+    margin: 10px 0;
+  }
+  #puzzle {
+    display: grid;
+    gap: 3px;
+    justify-content: center;
+    margin: 20px auto;
+  }
+  .tile {
+    background: #4caf50;
+    color: white;
+    font-size: 1.8rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    border-radius: 6px;
+    transition: background 0.3s, transform 0.2s;
+  }
+  .tile.empty {
+    background: transparent;
+    cursor: default;
+  }
+  .tile:hover:not(.empty) {
+    background: #45a049;
+    transform: scale(1.05);
+  }
+  #info {
+    font-size: 1rem;
+    margin-top: 10px;
+  }
+  #message {
+    font-size: 1.2rem;
+    margin-top: 15px;
+    color: #333;
+  }
+  button {
+    margin-top: 10px;
+    padding: 8px 16px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 6px;
+    background: #2196f3;
+    color: white;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #1976d2;
+  }
+</style>
+</head>
+<body>
+
+<h1>拡張版パズルゲーム</h1>
+
+<div id="controls">
+  サイズ: 
+  <select id="sizeSelect">
+    <option value="3">3×3</option>
+    <option value="4" selected>4×4</option>
+    <option value="5">5×5</option>
+  </select>
+  難易度:
+  <label><input type="radio" name="level" value="easy" checked>簡単</label>
+  <label><input type="radio" name="level" value="normal">普通</label>
+  <label><input type="radio" name="level" value="hard">難しい</label>
+</div>
+
+<div id="puzzle"></div>
+<div id="info">
+  <span id="moves">手数: 0</span> | 
+  <span id="timer">時間: 0秒</span>
+</div>
+<div id="message"></div>
+<button id="shuffleBtn">スタート / シャッフル</button>
+
+<script>
+  const puzzle = document.getElementById('puzzle');
+  const message = document.getElementById('message');
+  const shuffleBtn = document.getElementById('shuffleBtn');
+  const sizeSelect = document.getElementById('sizeSelect');
+  
+  let tiles = [];
+  let size = 4;
+  let emptyIndex;
+  let moves = 0;
+  let seconds = 0;
+  let timerId;
+
+  // 初期化
+  function init() {
+    tiles = [];
+    for (let i = 1; i <= size * size - 1; i++) {
+      tiles.push(i);
+    }
+    tiles.push(0); 
+    emptyIndex = tiles.length - 1;
+  }
+
+  // シャッフル（難易度に応じて）
+  function shuffle() {
+    init();
+    let level = document.querySelector('input[name="level"]:checked').value;
+    let shuffleCount = (level === "easy") ? 30 : (level === "normal") ? 80 : 200;
+
+    for (let i = 0; i < shuffleCount; i++) {
+      let neighbors = getMovableTiles();
+      let rand = neighbors[Math.floor(Math.random() * neighbors.length)];
+      [tiles[emptyIndex], tiles[rand]] = [tiles[rand], tiles[emptyIndex]];
+      emptyIndex = rand;
+    }
+
+    render();
+    message.textContent = "パズルを解いてください！";
+
+    moves = 0;
+    document.getElementById("moves").textContent = "手数: 0";
+    startTimer();
+  }
+
+  // 移動できる隣接タイルのインデックス
+  function getMovableTiles() {
+    const rowEmpty = Math.floor(emptyIndex / size);
+    const colEmpty = emptyIndex % size;
+    const neighbors = [];
+    [[0,1],[0,-1],[1,0],[-1,0]].forEach(([dr,dc])=>{
+      const r = rowEmpty+dr, c = colEmpty+dc;
+      if(r>=0 && r<size && c>=0 && c<size) {
+        neighbors.push(r*size+c);
+      }
+    });
+    return neighbors;
+  }
+
+  // 描画
+  function render() {
+    puzzle.innerHTML = '';
+    puzzle.style.gridTemplateColumns = `repeat(${size}, 80px)`;
+    puzzle.style.gridTemplateRows = `repeat(${size}, 80px)`;
+
+    tiles.forEach((num, i) => {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      if (num === 0) {
+        tile.classList.add('empty');
+      } else {
+        tile.textContent = num;
+        tile.addEventListener('click', () => moveTile(i));
+      }
+      puzzle.appendChild(tile);
+    });
+  }
+
+  // タイル移動
+  function moveTile(index) {
+    if (canMove(index)) {
+      [tiles[emptyIndex], tiles[index]] = [tiles[index], tiles[emptyIndex]];
+      emptyIndex = index;
+      moves++;
+      document.getElementById("moves").textContent = "手数: " + moves;
+      render();
+      if (isCompleted()) {
+        message.textContent = "クリア！おめでとうございます";
+        stopTimer();
+      }
+    }
+  }
+
+  function canMove(index) {
+    return getMovableTiles().includes(index);
+  }
+
+  // 完成判定
+  function isCompleted() {
+    for (let i = 0; i < tiles.length - 1; i++) {
+      if (tiles[i] !== i + 1) return false;
+    }
+    return tiles[tiles.length - 1] === 0;
+  }
+
+  // タイマー
+  function startTimer() {
+    clearInterval(timerId);
+    seconds = 0;
+    document.getElementById("timer").textContent = "時間: 0秒";
+    timerId = setInterval(() => {
+      seconds++;
+      document.getElementById("timer").textContent = "時間: " + seconds + "秒";
+    }, 1000);
+  }
+
+  function stopTimer() {
+    clearInterval(timerId);
+  }
+
+  shuffleBtn.addEventListener('click', () => {
+    size = parseInt(sizeSelect.value);
+    shuffle();
+  });
+
+  // 初回
+  shuffle();
+</script>
+</body>
+</html>
